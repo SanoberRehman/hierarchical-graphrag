@@ -13,6 +13,7 @@ import type {
   IngestRequest,
   IngestResponse,
   JobStatus,
+  SubgraphResponse,
 } from "@/lib/types";
 
 export const API_BASE_URL = (
@@ -60,6 +61,22 @@ export async function getJobStatus(
     { signal },
   );
   return asJson<JobStatus>(res);
+}
+
+/**
+ * Fetch a subgraph: the one used for a specific chat answer (`queryId`), or a
+ * whole-knowledge-graph sample (default) bounded by `limit`.
+ */
+export async function getSubgraph(
+  opts: { queryId?: string; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<SubgraphResponse> {
+  const qs = new URLSearchParams();
+  if (opts.queryId) qs.set("query_id", opts.queryId);
+  if (opts.limit) qs.set("limit", String(opts.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(apiUrl(`/api/v1/graph/subgraph${suffix}`), { signal });
+  return asJson<SubgraphResponse>(res);
 }
 
 /**

@@ -115,13 +115,16 @@ Then open:
 ## Using it
 
 1. **Ingest** a document in the UI's ingest panel — click **Load sample** to drop
-   in a ready-made corpus, or paste your own text (+ optional title), or use the
-   API (below). Watch the job progress (parents, children, entities,
-   relationships).
+   in a ready-made corpus, **Load large demo** for a big densely-connected one, or
+   paste your own text (+ optional title), or use the API (below). Watch the job
+   progress (parents, children, entities, relationships).
 2. **Ask** a question. The answer streams token-by-token with:
    - **Citation cards** — expand to see the parent passages used (with scores).
    - **Graph triples** — the `(Source)-[TYPE]->(Target)` relationships used.
-   - **Graph Inspector** — the interactive subgraph that grounded the answer.
+   - **Graph Inspector** — the interactive subgraph that grounded the answer,
+     rendered on a deep-space canvas with nodes sized by connectivity. Toggle
+     **Full graph** to explore the entire knowledge graph (great after **Load
+     large demo**).
 
 ### Sample queries
 

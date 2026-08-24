@@ -5,10 +5,14 @@ import cytoscape, {
   type ElementDefinition,
   type EventObject,
 } from "cytoscape";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { getSubgraph } from "@/lib/api";
 import type { Subgraph } from "@/lib/types";
-import { colorMapForTypes } from "@/lib/utils";
+import { cn, colorMapForTypes } from "@/lib/utils";
+
+// Whole-graph sample size for the "Full graph" view. Bounded for render perf.
+const FULL_GRAPH_LIMIT = 400;
 
 interface GraphInspectorProps {
   subgraph: Subgraph | null;
@@ -178,18 +182,57 @@ function toElements(
   return [...nodes, ...edges];
 }
 
+type Mode = "answer" | "full";
+
 export function GraphInspector({ subgraph }: GraphInspectorProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cyRef = useRef<Core | null>(null);
 
+  const [mode, setMode] = useState<Mode>("answer");
+  const [fullGraph, setFullGraph] = useState<Subgraph | null>(null);
+  const [loadingFull, setLoadingFull] = useState(false);
+  const [fullError, setFullError] = useState<string | null>(null);
+  const fullAbort = useRef<AbortController | null>(null);
+
+  // The subgraph currently on screen: the last answer's, or the whole-KB sample.
+  const active = mode === "full" ? fullGraph : subgraph;
+
+  const loadFull = useCallback(async () => {
+    fullAbort.current?.abort();
+    const controller = new AbortController();
+    fullAbort.current = controller;
+    setLoadingFull(true);
+    setFullError(null);
+    try {
+      const res = await getSubgraph({ limit: FULL_GRAPH_LIMIT }, controller.signal);
+      setFullGraph(res.subgraph);
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        setFullError(err instanceof Error ? err.message : "Failed to load graph.");
+      }
+    } finally {
+      if (fullAbort.current === controller) fullAbort.current = null;
+      setLoadingFull(false);
+    }
+  }, []);
+
+  // Fetch the full graph the first time it's opened.
+  useEffect(() => {
+    if (mode === "full" && fullGraph === null && !loadingFull && !fullError) {
+      void loadFull();
+    }
+  }, [mode, fullGraph, loadingFull, fullError, loadFull]);
+
+  useEffect(() => () => fullAbort.current?.abort(), []);
+
   const colorByType = useMemo(
-    () => colorMapForTypes(subgraph?.nodes.map((n) => n.type) ?? []),
-    [subgraph],
+    () => colorMapForTypes(active?.nodes.map((n) => n.type) ?? []),
+    [active],
   );
 
   const elements = useMemo(
-    () => (subgraph ? toElements(subgraph, colorByType) : []),
-    [subgraph, colorByType],
+    () => (active ? toElements(active, colorByType) : []),
+    [active, colorByType],
   );
 
   const legend = useMemo(() => Array.from(colorByType.entries()), [colorByType]);
@@ -267,48 +310,100 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
     };
   }, [elements]);
 
+  const resetView = () => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.elements().removeClass("faded highlighted lit");
+    fitWithCap(cy);
+  };
+
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div>
+      <div className="flex items-start justify-between gap-2 px-4 py-3">
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold">Graph Inspector</h2>
           {elements.length > 0 && (
             <p className="mt-0.5 text-xs text-muted">
-              {subgraph?.nodes.length} entities · {subgraph?.edges.length} relationships
+              {active?.nodes.length} entities · {active?.edges.length} relationships
               <span className="hidden sm:inline"> · click a node to focus</span>
             </p>
           )}
         </div>
-        {legend.length > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              const cy = cyRef.current;
-              if (!cy) return;
-              cy.elements().removeClass("faded highlighted lit");
-              fitWithCap(cy);
-            }}
-            className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-fg"
-          >
-            Reset view
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex rounded-lg border border-border p-0.5 text-xs">
+            {(["answer", "full"] as Mode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={mode === m}
+                onClick={() => setMode(m)}
+                className={cn(
+                  "rounded-md px-2 py-1 font-medium transition-colors",
+                  mode === m ? "bg-accent text-accent-fg" : "text-muted hover:text-fg",
+                )}
+              >
+                {m === "answer" ? "This answer" : "Full graph"}
+              </button>
+            ))}
+          </div>
+          {mode === "full" && (
+            <button
+              type="button"
+              onClick={loadFull}
+              title="Refresh full graph"
+              aria-label="Refresh full graph"
+              className="rounded-lg border border-border px-2 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-fg"
+            >
+              ↻
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="relative min-h-0 flex-1">
-        {elements.length === 0 ? (
+        {mode === "full" && loadingFull ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted">
+            Loading knowledge graph…
+          </div>
+        ) : elements.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
             <GraphGlyph />
-            <p className="max-w-[15rem] text-sm text-muted">
-              Ask a question — the knowledge subgraph that grounds the answer appears here.
-            </p>
+            {mode === "answer" ? (
+              <p className="max-w-[15rem] text-sm text-muted">
+                Ask a question — the knowledge subgraph that grounds the answer appears here.
+              </p>
+            ) : (
+              <div className="flex max-w-[16rem] flex-col items-center gap-2.5">
+                <p className="text-sm text-muted">
+                  {fullError
+                    ? fullError
+                    : "No entities yet. Ingest a document (try “Load sample”), then refresh."}
+                </p>
+                <button
+                  type="button"
+                  onClick={loadFull}
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-fg transition-colors hover:bg-surface"
+                >
+                  {fullError ? "Retry" : "Refresh"}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          <div
-            ref={containerRef}
-            className="graph-space-bg absolute inset-2 overflow-hidden rounded-xl ring-1 ring-white/5"
-            style={{ cursor: "grab" }}
-          />
+          <>
+            <div
+              ref={containerRef}
+              className="graph-space-bg absolute inset-2 overflow-hidden rounded-xl ring-1 ring-white/5"
+              style={{ cursor: "grab" }}
+            />
+            <button
+              type="button"
+              onClick={resetView}
+              className="absolute right-3 top-3 rounded-lg border border-white/10 bg-black/40 px-2.5 py-1 text-xs text-slate-200 backdrop-blur-sm transition-colors hover:bg-black/60"
+            >
+              Reset view
+            </button>
+          </>
         )}
       </div>
 

@@ -18,6 +18,36 @@ const SAMPLE_TEXT =
   "Beta Industries invested in Delta Systems, a promising startup. " +
   "Gamma Ventures added Delta Systems to its portfolio.";
 
+const LARGE_DEMO_TITLE = "Tech Ecosystem (large demo)";
+
+// Generate a big, densely-connected corpus: a set of recurring "hub" companies
+// (which accrue high connectivity) linked to many one-off startups. Ingested in
+// zero-key mode this yields a few hundred entities — enough to fill the graph
+// inspector's "Full graph" view like a neural network. Deterministic (no RNG).
+function buildLargeDemo(): string {
+  const hubs = [
+    "Helios Group", "Orion Dynamics", "Vega Capital", "Nimbus Labs",
+    "Aster Robotics", "Quasar Media", "Titan Foundry", "Lyra Networks",
+    "Cobalt Systems", "Meridian Bank", "Polaris Energy", "Zephyr Mobility",
+    "Onyx Semiconductors", "Halcyon Bio", "Vertex Analytics", "Solstice Retail",
+    "Kestrel Aerospace", "Ferrum Steel", "Aurora Pharma", "Cirrus Cloud",
+  ];
+  const verbs = [
+    "acquired", "partnered with", "invested in", "merged with", "supplies",
+    "competes with", "spun off", "licensed technology to", "acquired a stake in",
+    "formed a joint venture with",
+  ];
+  const lines: string[] = [];
+  for (let i = 0; i < 300; i += 1) {
+    const h1 = hubs[i % hubs.length];
+    const h2 = hubs[(i * 3 + 5) % hubs.length];
+    const startup = `Startup${i}`;
+    const verb = verbs[i % verbs.length];
+    lines.push(`${h1} ${verb} ${startup}, and later ${h2} backed ${startup}.`);
+  }
+  return lines.join(" ");
+}
+
 interface StatMap {
   label: string;
   value: number;
@@ -132,19 +162,37 @@ export function IngestPanel() {
     setError(null);
   }, [isRunning]);
 
+  const loadLargeDemo = useCallback(() => {
+    if (isRunning) return;
+    setTitle(LARGE_DEMO_TITLE);
+    setText(buildLargeDemo());
+    setError(null);
+  }, [isRunning]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Ingest Documents</h2>
-          <button
-            type="button"
-            onClick={loadSample}
-            disabled={isRunning}
-            className="text-xs font-medium text-accent transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Load sample
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={loadSample}
+              disabled={isRunning}
+              className="text-xs font-medium text-accent transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Load sample
+            </button>
+            <button
+              type="button"
+              onClick={loadLargeDemo}
+              disabled={isRunning}
+              title="Load a large, densely-connected corpus (~300 relations)"
+              className="text-xs font-medium text-accent transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Load large demo
+            </button>
+          </div>
         </div>
         <p className="mt-0.5 text-xs text-muted">
           Add text to the knowledge base, then watch it get chunked and indexed.
