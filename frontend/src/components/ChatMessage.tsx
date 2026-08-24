@@ -1,6 +1,11 @@
+"use client";
+
+import { useState } from "react";
+
 import { CitationCard } from "@/components/CitationCard";
 import { TripleChips } from "@/components/TripleChips";
 import type { ChatMessage as ChatMessageType } from "@/hooks/useChat";
+import type { Citation } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface ChatMessageProps {
@@ -43,20 +48,45 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}
       </div>
 
-      {citations.length > 0 && (
-        <div className="max-w-[95%] space-y-1.5">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">
-            Citations
-          </p>
+      {citations.length > 0 && <CitationList citations={citations} />}
+
+      <div className={cn(triples.length > 0 && "max-w-[95%]")}>
+        <TripleChips triples={triples} />
+      </div>
+    </div>
+  );
+}
+
+/** Collapsed by default — shows a count, expands to the full source cards, so a
+ *  long citation list doesn't push the answer off-screen. */
+function CitationList({ citations }: { citations: Citation[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="max-w-[95%]">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted transition-colors hover:text-fg"
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          aria-hidden="true"
+          className={cn("transition-transform", open && "rotate-90")}
+        >
+          <path d="M3 1 L7 5 L3 9" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+        {citations.length} source{citations.length > 1 ? "s" : ""}
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-1.5">
           {citations.map((c, i) => (
             <CitationCard key={`${c.parent_id}-${i}`} citation={c} index={i} />
           ))}
         </div>
       )}
-
-      <div className={cn(triples.length > 0 && "max-w-[95%]")}>
-        <TripleChips triples={triples} />
-      </div>
     </div>
   );
 }

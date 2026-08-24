@@ -268,7 +268,7 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
         edgeElasticity: () => 100,
         gravity: 0.35,
       },
-      wheelSensitivity: 0.2,
+      wheelSensitivity: 0.5,
       minZoom: 0.1,
       maxZoom: 2.5,
     });
@@ -321,6 +321,17 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
     if (!cy) return;
     cy.elements().removeClass("faded highlighted lit");
     fitWithCap(cy);
+  };
+
+  // Zoom toward the centre of the viewport (buttons for people who don't want
+  // to fight the scroll wheel on a big graph).
+  const zoomBy = (factor: number) => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.zoom({
+      level: cy.zoom() * factor,
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    });
   };
 
   return (
@@ -409,6 +420,24 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
             >
               Reset view
             </button>
+            <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm">
+              <button
+                type="button"
+                aria-label="Zoom in"
+                onClick={() => zoomBy(1.35)}
+                className="px-2.5 py-1 text-base leading-none text-slate-200 transition-colors hover:bg-black/60"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                aria-label="Zoom out"
+                onClick={() => zoomBy(1 / 1.35)}
+                className="border-t border-white/10 px-2.5 py-1 text-base leading-none text-slate-200 transition-colors hover:bg-black/60"
+              >
+                −
+              </button>
+            </div>
           </>
         )}
       </div>
