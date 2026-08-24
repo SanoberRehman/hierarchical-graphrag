@@ -8,10 +8,10 @@ the system reproducible and makes the fake-provider offline mode a one-line flip
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Provider = Literal["openai", "fake"]
 
@@ -62,7 +62,12 @@ class Settings(BaseSettings):
     graph_max_hops: int = 2
 
     # --- API ---
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    # NoDecode: stop pydantic-settings from JSON-decoding this list field from the
+    # env (a plain "http://localhost:3000" isn't JSON) — the validator below turns
+    # the raw comma-separated string into a list instead.
+    cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:3000"]
+    )
 
     @field_validator("cors_origins", mode="before")
     @classmethod
