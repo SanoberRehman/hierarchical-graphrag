@@ -123,7 +123,9 @@ def test_chat_stream_emits_ordered_events() -> None:
     assert graph["subgraph"]["nodes"] and graph["triples"]
 
     answer = "".join(d["text"] for n, d in events if n == "token")
-    assert "grounded summary" in answer  # the fake LLM's deterministic answer
+    # The fake LLM extracts entity names from the retrieved context.
+    assert "key entities include" in answer
+    assert "Acme Corporation" in answer
 
 
 def test_chat_stream_surfaces_retrieval_error() -> None:
