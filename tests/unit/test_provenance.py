@@ -89,6 +89,26 @@ def test_mention_matching_is_normalized_across_surface_variants() -> None:
     assert nodes[0].child_chunk_ids == ["c0"]
 
 
+def test_mention_matching_respects_word_boundaries() -> None:
+    # "Alpha1" must link to a child that says "Alpha1" but NOT to one that only
+    # says "Alpha11" (prefix collision that raw substring matching would hit).
+    hit = ChildChunk(
+        id="c_hit", parent_id="p0", doc_id="d", index=0, token_count=6,
+        text="Project Alpha1 launched this year.",
+    )
+    miss = ChildChunk(
+        id="c_miss", parent_id="p0", doc_id="d", index=1, token_count=6,
+        text="The Alpha11 initiative expanded rapidly.",
+    )
+    parent = ParentChunk(
+        id="p0", doc_id="d", index=0, token_count=12,
+        text=hit.text + " " + miss.text, child_ids=["c_hit", "c_miss"],
+    )
+    extraction = GraphExtraction(entities=[Entity(name="Alpha1", type="PROJECT")])
+    nodes, _ = map_provenance(extraction, parent, [hit, miss])
+    assert nodes[0].child_chunk_ids == ["c_hit"]
+
+
 def test_edge_endpoint_missing_from_entities_gets_synthetic_key() -> None:
     parent, children = _parent_with_children()
     extraction = GraphExtraction(
