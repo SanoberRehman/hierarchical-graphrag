@@ -24,6 +24,12 @@ from app.config import Settings
 from app.models.graph import GraphEdge, GraphNode, Subgraph
 
 _TYPE_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+
+
+def _normalize_text(text: str) -> str:
+    """Lowercase and collapse non-alphanumerics to single spaces (for matching)."""
+    return _NON_ALNUM.sub(" ", text.lower()).strip()
 
 _UPSERT_NODES = """
 UNWIND $nodes AS n
@@ -138,13 +144,16 @@ class GraphStore:
         """
         if not text or not text.strip():
             return []
+        # Whole-token match: normalize the text and space-pad both sides so
+        # "Meta" seeds on "Meta" but not on "metaverse".
+        padded = f" {_normalize_text(text)} "
         query = (
             "MATCH (e:Entity) "
-            "WHERE size(e.name) >= 3 AND toLower($text) CONTAINS toLower(e.name) "
+            "WHERE size(e.name) >= 3 AND $padded CONTAINS (' ' + toLower(e.name) + ' ') "
             "RETURN e.key AS key"
         )
         with self._driver.session() as session:
-            return [record["key"] for record in session.run(query, text=text)]
+            return [record["key"] for record in session.run(query, padded=padded)]
 
     def expand_subgraph(self, seed_keys: list[str], hops: int) -> Subgraph:
         """N-hop neighborhood around the seed entities, as nodes + edges."""

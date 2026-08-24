@@ -39,7 +39,10 @@ def _children_mentioning(term: str, children: list[ChildChunk]) -> list[str]:
     needle = _normalize(term)
     if not needle:
         return []
-    return [c.id for c in children if needle in _normalize(c.text)]
+    # Match on whole-token boundaries (space-pad both sides) so an entity like
+    # "Alpha1" does not spuriously match a child mentioning "Alpha11".
+    padded = f" {needle} "
+    return [c.id for c in children if padded in f" {_normalize(c.text)} "]
 
 
 def map_provenance(
