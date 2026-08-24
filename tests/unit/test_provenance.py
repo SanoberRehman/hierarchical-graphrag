@@ -76,5 +76,11 @@ def test_edge_endpoint_missing_from_entities_gets_synthetic_key() -> None:
             Relationship(source="Acme Corp", target="Beta Inc", type="ACQUIRED"),
         ],
     )
-    _, edges = map_provenance(extraction, parent, children)
+    nodes, edges = map_provenance(extraction, parent, children)
     assert edges[0].target == "ENTITY:beta inc"
+    # A synthetic node is created so every edge endpoint exists in the graph.
+    node_keys = {n.key for n in nodes}
+    assert "ENTITY:beta inc" in node_keys
+    synthetic = next(n for n in nodes if n.key == "ENTITY:beta inc")
+    assert synthetic.name == "Beta Inc"
+    assert "c0" in synthetic.child_chunk_ids

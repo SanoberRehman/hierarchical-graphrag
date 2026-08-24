@@ -25,6 +25,7 @@ class ChildChunk(BaseModel):
     text: str
     token_count: int
     index: int = Field(description="Ordinal position of this child within the document.")
+    title: str | None = None
 
 
 class ParentChunk(BaseModel):
@@ -36,6 +37,7 @@ class ParentChunk(BaseModel):
     token_count: int
     index: int = Field(description="Ordinal position of this parent within the document.")
     child_ids: list[str] = Field(default_factory=list)
+    title: str | None = None
 
 
 class HierarchicalChunks(BaseModel):

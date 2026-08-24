@@ -87,6 +87,7 @@ class HierarchicalChunker:
                         text=child_text,
                         token_count=self._count_tokens(child_text),
                         index=child_ordinal,
+                        title=title,
                     )
                 )
                 child_ids.append(child_id)
@@ -100,6 +101,7 @@ class HierarchicalChunker:
                     token_count=self._count_tokens(parent_text),
                     index=p_index,
                     child_ids=child_ids,
+                    title=title,
                 )
             )
 

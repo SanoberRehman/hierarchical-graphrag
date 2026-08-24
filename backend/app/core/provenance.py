@@ -35,18 +35,36 @@ def map_provenance(
     entities_by_name = {e.name.lower(): e for e in extraction.entities}
 
     nodes: list[GraphNode] = []
+    nodes_by_key: dict[str, GraphNode] = {}
     for entity in extraction.entities:
         child_ids = _children_mentioning(entity.name, children)
-        nodes.append(
-            GraphNode(
-                key=entity.key,
-                name=entity.name,
-                type=entity.type,
-                description=entity.description,
-                parent_chunk_ids=[parent.id],
-                child_chunk_ids=child_ids,
-            )
+        node = GraphNode(
+            key=entity.key,
+            name=entity.name,
+            type=entity.type,
+            description=entity.description,
+            parent_chunk_ids=[parent.id],
+            child_chunk_ids=child_ids,
         )
+        nodes.append(node)
+        nodes_by_key[node.key] = node
+
+    def _ensure_endpoint_node(name: str) -> str:
+        """Return the node key for an edge endpoint, creating a synthetic node
+        if the extractor named it in a relationship but not in the entity list.
+        Guarantees every edge has both endpoints present in the graph."""
+        key = _entity_key(name, entities_by_name)
+        if key not in nodes_by_key:
+            synthetic = GraphNode(
+                key=key,
+                name=name,
+                type=key.split(":", 1)[0],
+                parent_chunk_ids=[parent.id],
+                child_chunk_ids=_children_mentioning(name, children),
+            )
+            nodes.append(synthetic)
+            nodes_by_key[key] = synthetic
+        return key
 
     edges: list[GraphEdge] = []
     for rel in extraction.relationships:
@@ -57,8 +75,8 @@ def map_provenance(
         evidence = both or (src_children | tgt_children)
         edges.append(
             GraphEdge(
-                source=_entity_key(rel.source, entities_by_name),
-                target=_entity_key(rel.target, entities_by_name),
+                source=_ensure_endpoint_node(rel.source),
+                target=_ensure_endpoint_node(rel.target),
                 type=rel.type,
                 description=rel.description,
                 parent_chunk_ids=[parent.id],
