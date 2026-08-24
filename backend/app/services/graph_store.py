@@ -20,7 +20,7 @@ from collections import defaultdict
 
 from neo4j import GraphDatabase
 
-from app.config import Settings
+from app.config import MAX_GRAPH_HOPS, Settings
 from app.models.graph import GraphEdge, GraphNode, Subgraph
 
 _TYPE_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -159,7 +159,7 @@ class GraphStore:
         """N-hop neighborhood around the seed entities, as nodes + edges."""
         if not seed_keys:
             return Subgraph()
-        hops = max(0, min(int(hops), 4))  # bound traversal depth
+        hops = max(0, min(int(hops), MAX_GRAPH_HOPS))  # bound traversal depth
         # hops must be a literal in a variable-length pattern; it is an int here.
         query = (
             "MATCH (seed:Entity) WHERE seed.key IN $seed_keys "

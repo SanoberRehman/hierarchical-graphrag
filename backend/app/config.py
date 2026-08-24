@@ -15,6 +15,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Provider = Literal["openai", "fake"]
 
+# Hard ceiling on graph-traversal depth. Enforced both at the API (request
+# validation) and the store (Cypher clamp) so the two never drift apart.
+MAX_GRAPH_HOPS = 4
+
 
 class Settings(BaseSettings):
     """Strongly-typed settings sourced from environment variables / ``.env``."""

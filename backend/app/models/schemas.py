@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.config import MAX_GRAPH_HOPS
 from app.models.graph import Subgraph
 
 # --- Ingestion ---
@@ -59,7 +60,7 @@ class ChatRequest(BaseModel):
     query: str = Field(min_length=1)
     session_id: str | None = None
     top_k: int | None = Field(default=None, ge=1, le=50)
-    max_hops: int | None = Field(default=None, ge=0, le=4)
+    max_hops: int | None = Field(default=None, ge=0, le=MAX_GRAPH_HOPS)
 
 
 class Citation(BaseModel):
