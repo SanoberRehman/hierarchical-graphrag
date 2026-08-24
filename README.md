@@ -15,6 +15,10 @@ expandable citations and an interactive visualization of the subgraph used.
 
 *Ingesting a document, then asking a question — the answer streams live with expandable citations and the interactive knowledge subgraph used to ground it.*
 
+![Knowledge graph inspector — the entity–relationship network on a deep-space canvas, nodes sized by connectivity, with click-to-focus on a hub's neighborhood](docs/graph-galaxy.gif)
+
+*The interactive graph inspector: the full knowledge graph as a glowing network (nodes sized by connectivity), then focusing a hub to light up its neighborhood.*
+
 ---
 
 ## Contents
