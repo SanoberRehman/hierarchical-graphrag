@@ -25,4 +25,8 @@ class JobStore:
         return status
 
     def get(self, job_id: str) -> JobStatus | None:
-        return self._jobs.get(job_id)
+        status = self._jobs.get(job_id)
+        # Return a snapshot: the ingestion pipeline mutates the stored status in a
+        # background thread, so handing out the live object risks a poll observing
+        # a half-updated set of counters.
+        return status.model_copy(deep=True) if status is not None else None

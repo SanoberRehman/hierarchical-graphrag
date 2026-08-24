@@ -103,13 +103,20 @@ Then open:
 - **API docs (Swagger):** http://localhost:8000/docs
 - **Neo4j Browser:** http://localhost:7474 (user `neo4j`, password `password`)
 
+> **Zero-key mode is for wiring, not answer quality.** With `fake` providers the
+> retrieval, citations, and knowledge subgraph are all real (derived from the text
+> you ingest), but the generated *answer* is a fixed placeholder and relationships
+> are generic `RELATED_TO`. Set `OPENAI_API_KEY` (Option A) for genuine,
+> query-specific answers and typed relationships like `ACQUIRED` / `PARTNERED_WITH`.
+
 > The browser calls the API at `http://localhost:8000`, which is the backend
 > port published to your host — no extra config needed for the default setup.
 
 ## Using it
 
-1. **Ingest** a document in the UI's ingest panel (paste text + optional title),
-   or via the API (below). Watch the job progress (parents, children, entities,
+1. **Ingest** a document in the UI's ingest panel — click **Load sample** to drop
+   in a ready-made corpus, or paste your own text (+ optional title), or use the
+   API (below). Watch the job progress (parents, children, entities,
    relationships).
 2. **Ask** a question. The answer streams token-by-token with:
    - **Citation cards** — expand to see the parent passages used (with scores).
@@ -118,11 +125,19 @@ Then open:
 
 ### Sample queries
 
-Using the built-in demo text about company deals:
+Click **Load sample** in the ingest panel (it loads the short corpus below) and
+ingest it, then ask:
 
 - "What did Acme Corporation acquire?"
 - "How is Delta Systems connected to Gamma Ventures?"
-- "Which companies partnered with each other?"
+- "Which companies partnered with each other?" *(names the `PARTNERED_WITH` edge —
+  needs the OpenAI provider; in zero-key mode all edges are generic `RELATED_TO`.)*
+
+The sample corpus (also what **Load sample** inserts):
+
+> Acme Corporation acquired Beta Industries in a landmark deal. Acme Corporation
+> also partnered with Gamma Ventures. Beta Industries invested in Delta Systems, a
+> promising startup. Gamma Ventures added Delta Systems to its portfolio.
 
 ## API
 
@@ -132,7 +147,7 @@ Base URL `http://localhost:8000`. Full interactive docs at `/docs`.
 # Ingest (async) -> returns a job_id
 curl -s -X POST http://localhost:8000/api/v1/ingest \
   -H 'content-type: application/json' \
-  -d '{"documents":[{"title":"Deals","text":"Acme Corporation acquired Beta Industries. Acme partnered with Gamma Ventures."}]}'
+  -d '{"documents":[{"title":"Company Deals","text":"Acme Corporation acquired Beta Industries in a landmark deal. Acme Corporation also partnered with Gamma Ventures. Beta Industries invested in Delta Systems, a promising startup. Gamma Ventures added Delta Systems to its portfolio."}]}'
 
 # Poll job status
 curl -s http://localhost:8000/api/v1/ingest/jobs/<job_id>

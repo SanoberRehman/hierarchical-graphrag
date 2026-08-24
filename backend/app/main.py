@@ -12,18 +12,23 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from app import __version__
 from app.api.v1 import routes_chat, routes_graph, routes_health, routes_ingest
 from app.config import get_settings
 from app.container import build_container
+from app.models.schemas import RootResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("app")
 
 
-@retry(stop=stop_after_attempt(15), wait=wait_fixed(2), reraise=True)
+# Bounded, so a missing store delays startup by seconds, not ~90s. Under
+# docker-compose the backend waits for Neo4j/Qdrant to be healthy first, so this
+# normally succeeds on the first attempt anyway.
+@retry(stop=stop_after_attempt(10), wait=wait_fixed(1.5), reraise=True)
 def _prepare_stores_with_retry(container) -> None:
     container.prepare_stores()
 
@@ -39,7 +44,8 @@ async def lifespan(app: FastAPI):
         settings.embedding_provider,
     )
     try:
-        _prepare_stores_with_retry(container)
+        # Off the event loop: the retry loop does blocking network I/O.
+        await run_in_threadpool(_prepare_stores_with_retry, container)
         logger.info("Stores ready (Qdrant collection + Neo4j schema).")
     except Exception:
         logger.warning(
@@ -71,9 +77,9 @@ def create_app() -> FastAPI:
     app.include_router(routes_chat.router)
     app.include_router(routes_graph.router)
 
-    @app.get("/", tags=["meta"])
-    async def root() -> dict:
-        return {"name": "hierarchical-graphrag", "version": __version__, "docs": "/docs"}
+    @app.get("/", tags=["meta"], response_model=RootResponse)
+    async def root() -> RootResponse:
+        return RootResponse(name="hierarchical-graphrag", version=__version__, docs="/docs")
 
     return app
 

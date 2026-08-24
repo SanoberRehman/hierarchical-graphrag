@@ -8,6 +8,16 @@ import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 1200;
 
+// A small self-contained corpus so a reviewer can ingest with one click and
+// immediately try the README's sample queries. It intentionally names every
+// entity those queries reference (Acme, Beta, Gamma Ventures, Delta Systems).
+const SAMPLE_TITLE = "Company Deals (sample)";
+const SAMPLE_TEXT =
+  "Acme Corporation acquired Beta Industries in a landmark deal. " +
+  "Acme Corporation also partnered with Gamma Ventures. " +
+  "Beta Industries invested in Delta Systems, a promising startup. " +
+  "Gamma Ventures added Delta Systems to its portfolio.";
+
 interface StatMap {
   label: string;
   value: number;
@@ -115,10 +125,27 @@ export function IngestPanel() {
   const isRunning =
     job?.state === "queued" || job?.state === "running" || submitting;
 
+  const loadSample = useCallback(() => {
+    if (isRunning) return;
+    setTitle(SAMPLE_TITLE);
+    setText(SAMPLE_TEXT);
+    setError(null);
+  }, [isRunning]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="px-4 py-3">
-        <h2 className="text-sm font-semibold">Ingest Documents</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Ingest Documents</h2>
+          <button
+            type="button"
+            onClick={loadSample}
+            disabled={isRunning}
+            className="text-xs font-medium text-accent transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Load sample
+          </button>
+        </div>
         <p className="mt-0.5 text-xs text-muted">
           Add text to the knowledge base, then watch it get chunked and indexed.
         </p>

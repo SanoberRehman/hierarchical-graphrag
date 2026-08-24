@@ -119,8 +119,14 @@ class GraphRAGRetriever:
             return {"hits": hits, "citations": hits_to_citations(hits)}
 
         def seed_graph(state: _State) -> _State:
+            # Two complementary signals into the graph: entities grounded in the
+            # matched child chunks (provenance), and entities named in the
+            # retrieved parent context (recovers ones the child slice missed).
             child_ids = [h.child_id for h in state.get("hits", [])]
-            return {"seed_keys": self._gs.seed_keys_by_child_ids(child_ids)}
+            keys = set(self._gs.seed_keys_by_child_ids(child_ids))
+            parent_text = "\n".join(c.text for c in state.get("citations", []))
+            keys |= set(self._gs.seed_keys_in_text(parent_text))
+            return {"seed_keys": sorted(keys)}
 
         def traverse(state: _State) -> _State:
             subgraph = self._gs.expand_subgraph(state.get("seed_keys", []), state["max_hops"])

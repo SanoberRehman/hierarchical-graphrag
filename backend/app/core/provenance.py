@@ -9,8 +9,22 @@ edge the bidirectional provenance the brief requires
 
 from __future__ import annotations
 
+import re
+
 from app.models.chunk import ChildChunk, ParentChunk
 from app.models.graph import Entity, GraphEdge, GraphExtraction, GraphNode
+
+_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+
+
+def _normalize(text: str) -> str:
+    """Lowercase and collapse runs of non-alphanumerics to single spaces.
+
+    Makes mention-matching robust to punctuation, casing, and whitespace/newline
+    artifacts introduced by chunk splitting (e.g. ``"Acme Corp."`` vs a child that
+    wrapped it as ``"Acme\\nCorp"``) — cases raw ``substring in text`` misses.
+    """
+    return _NON_ALNUM.sub(" ", text.lower()).strip()
 
 
 def _entity_key(name: str, entities_by_name: dict[str, Entity]) -> str:
@@ -22,8 +36,10 @@ def _entity_key(name: str, entities_by_name: dict[str, Entity]) -> str:
 
 
 def _children_mentioning(term: str, children: list[ChildChunk]) -> list[str]:
-    needle = term.lower()
-    return [c.id for c in children if needle in c.text.lower()]
+    needle = _normalize(term)
+    if not needle:
+        return []
+    return [c.id for c in children if needle in _normalize(c.text)]
 
 
 def map_provenance(

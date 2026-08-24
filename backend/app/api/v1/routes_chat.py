@@ -8,8 +8,8 @@ then paint tokens as they arrive.
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import queue
 import threading
 import uuid
 from collections.abc import AsyncIterator, Iterator
@@ -46,30 +46,51 @@ async def _stream_tokens(llm: LLMProvider, system: str, user: str) -> AsyncItera
     """Pump a synchronous token generator without blocking the event loop.
 
     The provider's ``stream_generate`` is a blocking generator (network I/O for
-    OpenAI). We run it in a worker thread and hand tokens to the async loop via a
-    thread-safe queue, awaiting each ``get`` in the threadpool.
+    OpenAI). We run it in a worker thread and hand tokens to the loop via an
+    ``asyncio.Queue`` fed with ``call_soon_threadsafe`` — so the consumer just
+    ``await``s the queue and no threadpool worker is tied up per active stream.
+
+    If the client disconnects mid-answer, sse-starlette closes this async
+    generator, raising ``GeneratorExit`` at the ``yield``. The ``finally`` sets
+    ``stop``, so the worker breaks out of ``stream_generate`` promptly instead of
+    leaking a thread (and, on the OpenAI path, continuing to bill tokens) until
+    process exit.
     """
-    q: queue.Queue = queue.Queue(maxsize=512)
+    loop = asyncio.get_running_loop()
+    q: asyncio.Queue = asyncio.Queue()
+    stop = threading.Event()
+
+    def _emit(item: tuple) -> None:
+        try:
+            loop.call_soon_threadsafe(q.put_nowait, item)
+        except RuntimeError:
+            pass  # event loop already closed (shutdown) — nothing to deliver to
 
     def worker() -> None:
         try:
             gen: Iterator[str] = llm.stream_generate(system, user)
             for token in gen:
-                q.put(("token", token))
+                if stop.is_set():
+                    break
+                _emit(("token", token))
         except Exception as exc:  # surfaced to the stream as an error event
-            q.put(("error", str(exc)))
+            if not stop.is_set():
+                _emit(("error", str(exc)))
         finally:
-            q.put(("end", _SENTINEL))
+            _emit(("end", _SENTINEL))
 
     threading.Thread(target=worker, name="llm-stream", daemon=True).start()
 
-    while True:
-        kind, value = await run_in_threadpool(q.get)
-        if kind == "end":
-            return
-        if kind == "error":
-            raise RuntimeError(value)
-        yield value
+    try:
+        while True:
+            kind, value = await q.get()
+            if kind == "end":
+                return
+            if kind == "error":
+                raise RuntimeError(value)
+            yield value
+    finally:
+        stop.set()  # tell the worker to stop on disconnect/cancel/completion
 
 
 @router.post("/chat")

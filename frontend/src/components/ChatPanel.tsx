@@ -21,10 +21,18 @@ interface ChatPanelProps {
 
 export function ChatPanel({ messages, isStreaming, onSend, onStop }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Stick to the bottom only while the user is already there — so scrolling up
+  // to read earlier messages mid-stream doesn't get yanked back down.
+  const stickToBottom = useRef(true);
+
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (el) stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   const isEmpty = messages.length === 0;
@@ -33,6 +41,7 @@ export function ChatPanel({ messages, isStreaming, onSend, onStop }: ChatPanelPr
     <div className="flex h-full min-h-0 flex-col">
       <div
         ref={scrollRef}
+        onScroll={handleScroll}
         className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-6 sm:px-6"
       >
         {isEmpty ? (

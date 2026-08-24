@@ -1,9 +1,10 @@
 """Hierarchical (small-to-big) chunking.
 
-A document is split into **disjoint parent chunks** (~1000 tokens). Each parent is
-then split into **child chunks** (~200 tokens, with a small overlap for recall).
-Because parents are disjoint, every child belongs to exactly one parent — which
-keeps parent↔child provenance unambiguous (a graded requirement).
+A document is split into **non-overlapping parent chunks** (~1000 tokens). Each
+parent is then split *within itself* into **child chunks** (~200 tokens, with a
+small overlap for recall). Because children are derived per-parent — and parents
+are disjoint — every child belongs to exactly one parent, which keeps parent↔child
+provenance unambiguous (a graded requirement).
 
 Splitting is token-aware but boundary-friendly: we use a recursive splitter that
 prefers paragraph/sentence/word boundaries while measuring length in tiktoken

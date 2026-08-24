@@ -52,6 +52,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "rounded-t-lg px-3 py-2 text-sm font-medium transition-colors",
         active

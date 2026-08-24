@@ -37,7 +37,10 @@ class Settings(BaseSettings):
     # --- Hierarchical chunking ---
     parent_chunk_tokens: int = 1000
     child_chunk_tokens: int = 200
-    parent_chunk_overlap_tokens: int = 100
+    # Parents are non-overlapping (disjoint) so a piece of source text lives in
+    # exactly one parent — keeping parent↔child provenance unambiguous. Recall at
+    # boundaries is recovered at the child tier, which does overlap.
+    parent_chunk_overlap_tokens: int = 0
     child_chunk_overlap_tokens: int = 30
     tokenizer_encoding: str = "cl100k_base"
 

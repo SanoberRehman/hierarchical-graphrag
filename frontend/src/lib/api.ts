@@ -13,7 +13,6 @@ import type {
   IngestRequest,
   IngestResponse,
   JobStatus,
-  SubgraphResponse,
 } from "@/lib/types";
 
 export const API_BASE_URL = (
@@ -61,15 +60,6 @@ export async function getJobStatus(
     { signal },
   );
   return asJson<JobStatus>(res);
-}
-
-export async function getSubgraph(
-  queryId?: string,
-  signal?: AbortSignal,
-): Promise<SubgraphResponse> {
-  const qs = queryId ? `?query_id=${encodeURIComponent(queryId)}` : "";
-  const res = await fetch(apiUrl(`/api/v1/graph/subgraph${qs}`), { signal });
-  return asJson<SubgraphResponse>(res);
 }
 
 /**

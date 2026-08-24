@@ -140,3 +140,9 @@ class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     llm_provider: str
     embedding_provider: str
+
+
+class RootResponse(BaseModel):
+    name: str
+    version: str
+    docs: str

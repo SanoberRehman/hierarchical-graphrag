@@ -69,7 +69,9 @@ def test_job_store_lifecycle() -> None:
     store = JobStore()
     status = store.create(accepted_documents=3)
     assert status.accepted_documents == 3
-    assert store.get(status.job_id) is status
+    snapshot = store.get(status.job_id)
+    assert snapshot == status  # same data...
+    assert snapshot is not status  # ...but a snapshot, isolating concurrent mutation
     assert store.get("nope") is None
 
 

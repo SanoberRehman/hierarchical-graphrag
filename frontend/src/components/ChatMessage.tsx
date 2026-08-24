@@ -49,7 +49,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             Citations
           </p>
           {citations.map((c, i) => (
-            <CitationCard key={c.parent_id} citation={c} index={i} />
+            <CitationCard key={`${c.parent_id}-${i}`} citation={c} index={i} />
           ))}
         </div>
       )}

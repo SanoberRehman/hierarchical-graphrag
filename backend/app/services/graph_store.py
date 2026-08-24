@@ -127,6 +127,25 @@ class GraphStore:
         with self._driver.session() as session:
             return [record["key"] for record in session.run(query, child_ids=child_ids)]
 
+    def seed_keys_in_text(self, text: str) -> list[str]:
+        """Entities whose canonical name appears in the given text.
+
+        A second seeding signal that complements child-chunk provenance: an entity
+        can sit squarely in the retrieved *parent* context even when the specific
+        matched child slice — or its exact surface form — didn't line up with the
+        entity's stored ``child_chunk_ids``. Seeding from the parent text recovers
+        those, so graph traversal isn't silently skipped for them.
+        """
+        if not text or not text.strip():
+            return []
+        query = (
+            "MATCH (e:Entity) "
+            "WHERE size(e.name) >= 3 AND toLower($text) CONTAINS toLower(e.name) "
+            "RETURN e.key AS key"
+        )
+        with self._driver.session() as session:
+            return [record["key"] for record in session.run(query, text=text)]
+
     def expand_subgraph(self, seed_keys: list[str], hops: int) -> Subgraph:
         """N-hop neighborhood around the seed entities, as nodes + edges."""
         if not seed_keys:

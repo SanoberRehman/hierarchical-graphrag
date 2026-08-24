@@ -96,6 +96,9 @@ export function useChat(): UseChatResult {
 
       void (async () => {
         let streamedText = "";
+        // Whether the server sent an explicit terminal event (done | error).
+        // Once it has, we must not overwrite that status when the stream closes.
+        let terminal = false;
         try {
           for await (const event of streamChat(
             {
@@ -123,19 +126,26 @@ export function useChat(): UseChatResult {
                 break;
               case "done":
                 patchAssistant(assistantId, { status: "done" });
+                terminal = true;
                 break;
               case "error":
                 patchAssistant(assistantId, { status: "error", error: event.message });
+                terminal = true;
                 break;
             }
           }
-          // Stream ended without an explicit done/error event.
-          patchAssistant(assistantId, {
-            status: streamedText ? "done" : "error",
-            error: streamedText ? null : "Stream closed before any response.",
-          });
+          // Stream ended without an explicit done/error event — reconcile only
+          // then, so a mid-stream error isn't overwritten as a successful answer.
+          if (!terminal) {
+            patchAssistant(assistantId, {
+              status: streamedText ? "done" : "error",
+              error: streamedText ? null : "Stream closed before any response.",
+            });
+          }
         } catch (err) {
-          if (controller.signal.aborted) {
+          if (terminal) {
+            // Already resolved by an explicit done/error event; keep that status.
+          } else if (controller.signal.aborted) {
             patchAssistant(assistantId, {
               status: streamedText ? "done" : "error",
               error: streamedText ? null : "Cancelled.",

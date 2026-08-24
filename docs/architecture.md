@@ -40,10 +40,10 @@ flowchart LR
     D[Document] --> P[Parent chunks ~1000 tok]
     P --> C[Child chunks ~200 tok]
     C --> E[Embed children]
-    E --> V[(Qdrant\nchild vectors)]
+    E --> V[("Qdrant<br/>child vectors")]
     P --> X[LLM graph extraction]
     C --> X
-    X --> G[(Neo4j\nentities + edges)]
+    X --> G[("Neo4j<br/>entities + edges")]
     C -. provenance .-> G
     P -. provenance .-> G
 ```
@@ -83,10 +83,25 @@ frontend later fetch the exact subgraph used via
   more connections but grows the context and latency super-linearly.
 * **Provider abstraction** lets a reviewer trade quality for zero-setup: the fake
   providers run instantly offline; OpenAI providers maximize extraction/answer
-  quality.
+  quality. Note that in fake mode the generated *answer* is a fixed placeholder
+  and relationships are generic `RELATED_TO` — citations and the subgraph are
+  still real, but typed relationships and genuine answers need an OpenAI key.
 
-A fuller write-up (chosen defaults, measured trade-offs) lands with the API and
-docker-compose PRs.
+## Known limitations
+
+Called out honestly rather than hidden — each is a deliberate scope choice with a
+clear extension path:
+
+* **Entity resolution is identity-by-key** (`TYPE:lowercased-name`). The same
+  real-world entity under different surface forms (`Acme` vs `Acme Corp`) or types
+  (`COMPANY` vs `ORGANIZATION`) won't automatically merge. Mention-matching for
+  provenance is normalized (case/punctuation/whitespace-insensitive) and seeding
+  also fires on entity names found in the retrieved parent context, which covers
+  the common cases; full alias/coreference resolution (embedding-based or an LLM
+  canonicalization pass) is the next step.
+* **Graph traversal is undirected** (`-[*1..hops]-`): edges are stored *typed and
+  directed*, but neighborhood expansion ignores direction to maximize recall.
+  Direction-aware traversal would let queries follow relationship semantics.
 
 ## Verification strategy
 

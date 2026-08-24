@@ -66,6 +66,7 @@ function MobileTab({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
         active ? "bg-accent text-accent-fg" : "text-muted hover:text-fg",

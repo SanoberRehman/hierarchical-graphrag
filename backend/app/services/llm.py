@@ -10,8 +10,9 @@ Two implementations ship:
 
 * :class:`OpenAILLMProvider` — production, using structured outputs + streaming.
 * :class:`FakeLLMProvider` — deterministic heuristics (capitalized phrases as
-  entities, adjacency as relationships; an extractive answer). No key required,
-  which lets the whole ingest→graph→chat path be exercised in CI.
+  entities, adjacency as generic ``RELATED_TO`` relationships; a fixed
+  placeholder answer). No key required, which lets the whole ingest→graph→chat
+  path be exercised in CI.
 """
 
 from __future__ import annotations
@@ -93,8 +94,10 @@ class FakeLLMProvider:
         return GraphExtraction(entities=entities, relationships=relationships)
 
     def stream_generate(self, system: str, user: str) -> Iterator[str]:
-        # Extractive, deterministic "answer": echo the first context lines so tests
-        # can assert grounding and streaming without a model.
+        # Deterministic, query-independent placeholder. The citations and subgraph
+        # in the stream are real (derived from ingested text); only this prose is
+        # canned, so tests can assert streaming/framing without a model. Set
+        # OPENAI_API_KEY (LLM_PROVIDER=openai) for genuine, query-specific answers.
         answer = (
             "Based on the retrieved context, here is a grounded summary [1]. "
             "The knowledge graph relationships were used to connect the relevant entities."
