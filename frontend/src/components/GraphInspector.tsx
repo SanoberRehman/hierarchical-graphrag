@@ -225,6 +225,12 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
 
   useEffect(() => () => fullAbort.current?.abort(), []);
 
+  // When a new answer arrives (its subgraph changes), surface it — don't leave
+  // the inspector stuck on the whole-graph sample.
+  useEffect(() => {
+    if (subgraph) setMode("answer");
+  }, [subgraph]);
+
   const colorByType = useMemo(
     () => colorMapForTypes(active?.nodes.map((n) => n.type) ?? []),
     [active],
