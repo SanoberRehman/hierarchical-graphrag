@@ -88,9 +88,13 @@ class FakeLLMProvider:
 
         entities = [Entity(name=name, type="ENTITY") for name in ordered]
         relationships: list[Relationship] = []
-        # Chain consecutive distinct entities so the graph is connected + assertable.
-        for a, b in zip(ordered, ordered[1:], strict=False):
-            relationships.append(Relationship(source=a, target=b, type="RELATED_TO"))
+        # Link each entity to the next few distinct entities (a sliding window)
+        # rather than a single chain, so the offline graph reads as a connected
+        # *web* — dense enough that a large corpus renders as a real network.
+        window = 3
+        for i, a in enumerate(ordered):
+            for b in ordered[i + 1 : i + 1 + window]:
+                relationships.append(Relationship(source=a, target=b, type="RELATED_TO"))
         return GraphExtraction(entities=entities, relationships=relationships)
 
     def stream_generate(self, system: str, user: str) -> Iterator[str]:

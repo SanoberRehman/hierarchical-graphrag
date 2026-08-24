@@ -62,6 +62,18 @@ def test_fake_llm_extracts_connected_graph() -> None:
         assert rel.source in names and rel.target in names
 
 
+def test_fake_llm_extraction_is_densely_connected() -> None:
+    # Windowed linking (not a single chain) so a large corpus renders as a web.
+    llm = FakeLLMProvider()
+    result = llm.extract_graph(
+        "Alpha Corp met Beta Corp and Gamma Corp and Delta Corp and Epsilon Corp."
+    )
+    names = [e.name for e in result.entities]
+    assert len(names) >= 5
+    first_out = {r.target for r in result.relationships if r.source == names[0]}
+    assert len(first_out) >= 2  # the first entity fans out to several neighbours
+
+
 def test_fake_llm_stream_is_nonempty_and_joinable() -> None:
     llm = FakeLLMProvider()
     tokens = list(llm.stream_generate("system", "user"))
