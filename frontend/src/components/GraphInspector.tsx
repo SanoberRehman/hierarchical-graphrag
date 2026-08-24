@@ -19,7 +19,22 @@ interface GraphInspectorProps {
 const FIT_PADDING = 30;
 const MAX_FIT_ZOOM = 1.1;
 
+// Above this many nodes, node labels are hidden at rest (revealed on hover /
+// focus) so a large graph reads as a clean constellation rather than a wall of
+// text.
+const DENSE_NODE_THRESHOLD = 40;
+
 const FONT_FAMILY = "Inter, system-ui, sans-serif";
+
+// Fixed "deep space" palette — the canvas is always dark (see .graph-space-bg),
+// so these don't track the page theme.
+const SPACE = {
+  label: "rgb(226, 232, 240)", // slate-200
+  labelHalo: "rgba(3, 6, 18, 0.92)",
+  edge: "rgba(148, 163, 184, 0.32)", // translucent slate — luminous thin lines
+  accent: "rgb(129, 140, 248)", // indigo-400
+  nodeBorder: "#0a0e1c",
+};
 
 function fitWithCap(cy: Core): void {
   cy.fit(undefined, FIT_PADDING);
@@ -29,116 +44,86 @@ function fitWithCap(cy: Core): void {
   }
 }
 
-interface ThemeColors {
-  fg: string;
-  card: string;
-  border: string;
-  muted: string;
-  surface: string;
-  accent: string;
-}
-
-/**
- * Cytoscape renders to a canvas and can't resolve CSS custom properties, so read
- * the active theme's tokens off :root and hand it concrete rgb() colors. Called
- * again on theme change so the canvas recolors live.
- */
-function readThemeColors(): ThemeColors {
-  const rootStyle = getComputedStyle(document.documentElement);
-  const token = (name: string, fallback: string): string => {
-    const raw = rootStyle.getPropertyValue(name).trim();
-    return raw ? `rgb(${raw.split(/\s+/).join(", ")})` : fallback;
-  };
-  return {
-    fg: token("--fg", "rgb(17, 20, 27)"),
-    card: token("--card", "rgb(255, 255, 255)"),
-    border: token("--border", "rgb(226, 229, 235)"),
-    muted: token("--muted", "rgb(107, 114, 128)"),
-    surface: token("--surface", "rgb(248, 249, 251)"),
-    accent: token("--accent", "rgb(88, 80, 236)"),
-  };
-}
-
 function buildStylesheet(
-  c: ThemeColors,
+  dense: boolean,
 ): (cytoscape.StylesheetStyle | cytoscape.StylesheetCSS)[] {
   return [
     {
       selector: "node",
       style: {
         "background-color": "data(color)",
-        width: 30,
-        height: 30,
-        "border-width": 3,
-        "border-color": c.card,
-        "border-opacity": 1,
+        // Size scales with connectivity: hubs read larger, like a neural net.
+        width: "mapData(deg, 0, 8, 16, 46)",
+        height: "mapData(deg, 0, 8, 16, 46)",
+        "border-width": 1.5,
+        "border-color": SPACE.nodeBorder,
+        "border-opacity": 0.9,
+        // A soft halo behind each node in its own color = the "glow".
+        "underlay-color": "data(color)",
+        "underlay-padding": 7,
+        "underlay-opacity": 0.35,
         label: "data(label)",
-        color: c.fg,
+        color: SPACE.label,
         "font-family": FONT_FAMILY,
-        "font-size": "12px",
+        "font-size": "11px",
         "font-weight": 600,
         "text-valign": "bottom",
         "text-halign": "center",
-        "text-margin-y": 7,
-        "text-max-width": "96px",
+        "text-margin-y": 6,
+        "text-max-width": "90px",
         "text-wrap": "wrap",
-        // A halo in the canvas color keeps labels legible over edges/nodes.
-        "text-outline-color": c.surface,
+        "text-outline-color": SPACE.labelHalo,
         "text-outline-width": 3,
         "text-outline-opacity": 1,
-        "transition-property": "border-color, border-width, opacity",
-        "transition-duration": 120,
+        "text-opacity": dense ? 0 : 1,
+        "transition-property": "opacity, text-opacity, border-color, width, height",
+        "transition-duration": 140,
       },
     },
     {
       selector: "edge",
       style: {
-        width: 1.5,
-        "line-color": c.border,
-        "target-arrow-color": c.border,
+        width: 1.1,
+        "line-color": SPACE.edge,
+        "target-arrow-color": SPACE.edge,
         "target-arrow-shape": "triangle",
-        "arrow-scale": 0.9,
+        "arrow-scale": 0.7,
         "curve-style": "bezier",
         label: "data(label)",
         "font-family": FONT_FAMILY,
-        "font-size": "10px",
-        color: c.muted,
+        "font-size": "9px",
+        color: SPACE.label,
         "text-rotation": "autorotate",
-        "text-outline-color": c.surface,
-        "text-outline-width": 3,
-        // Edge type is revealed on hover / highlight to keep the resting graph
-        // uncluttered (the full triples are also listed in the chat).
+        "text-outline-color": SPACE.labelHalo,
+        "text-outline-width": 2,
+        // Edge type revealed on hover / highlight to keep the resting graph clean.
         "text-opacity": 0,
-        "transition-property": "line-color, target-arrow-color, text-opacity, opacity",
-        "transition-duration": 120,
+        "transition-property": "line-color, target-arrow-color, text-opacity, opacity, width",
+        "transition-duration": 140,
       },
     },
+    // Reveal a node's label (used on hover / focus when labels are hidden).
+    { selector: "node.lit", style: { "text-opacity": 1 } },
     {
       selector: "node:active",
-      style: { "overlay-opacity": 0.1, "overlay-color": c.accent },
+      style: { "overlay-opacity": 0.12, "overlay-color": SPACE.accent },
     },
-    {
-      selector: ".faded",
-      style: { opacity: 0.12 },
-    },
+    { selector: ".faded", style: { opacity: 0.07 } },
     {
       selector: "node.highlighted",
-      style: { "border-color": c.accent, "border-width": 4 },
+      style: { "border-color": SPACE.accent, "border-width": 3, "underlay-opacity": 0.6 },
     },
     {
       selector: "edge.highlighted",
       style: {
-        "line-color": c.accent,
-        "target-arrow-color": c.accent,
-        color: c.fg,
+        "line-color": SPACE.accent,
+        "target-arrow-color": SPACE.accent,
+        color: SPACE.label,
         "text-opacity": 1,
         width: 2,
       },
     },
-    {
-      selector: "edge.show-label",
-      style: { color: c.fg, "text-opacity": 1 },
-    },
+    { selector: "edge.show-label", style: { color: SPACE.label, "text-opacity": 1 } },
   ];
 }
 
@@ -151,12 +136,24 @@ function buildStylesheet(
  *  - node keys contain ":" (e.g. "COMPANY:acme"), which are valid element ids
  *    but invalid selectors — we never build selectors from keys, only use
  *    getElementById / neighborhood traversal.
+ *
+ * Each node also carries a `deg` (degree) datum so the stylesheet can size it by
+ * connectivity.
  */
 function toElements(
   subgraph: Subgraph,
   colorByType: Map<string, string>,
 ): ElementDefinition[] {
   const nodeKeys = new Set(subgraph.nodes.map((n) => n.key));
+
+  const degree = new Map<string, number>();
+  const validEdges = subgraph.edges.filter(
+    (e) => nodeKeys.has(e.source) && nodeKeys.has(e.target),
+  );
+  for (const e of validEdges) {
+    degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
+    degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
+  }
 
   const nodes: ElementDefinition[] = subgraph.nodes.map((n) => ({
     data: {
@@ -165,19 +162,18 @@ function toElements(
       type: n.type,
       color: colorByType.get(n.type) ?? "#6366f1",
       description: n.description ?? "",
+      deg: degree.get(n.key) ?? 0,
     },
   }));
 
-  const edges: ElementDefinition[] = subgraph.edges
-    .filter((e) => nodeKeys.has(e.source) && nodeKeys.has(e.target))
-    .map((e, i) => ({
-      data: {
-        id: `e${i}-${e.source}->${e.target}`,
-        source: e.source,
-        target: e.target,
-        label: e.type.replace(/_/g, " "),
-      },
-    }));
+  const edges: ElementDefinition[] = validEdges.map((e, i) => ({
+    data: {
+      id: `e${i}-${e.source}->${e.target}`,
+      source: e.source,
+      target: e.target,
+      label: e.type.replace(/_/g, " "),
+    },
+  }));
 
   return [...nodes, ...edges];
 }
@@ -202,47 +198,60 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
     const container = containerRef.current;
     if (!container || elements.length === 0) return;
 
+    const nodeCount = elements.filter(
+      (el) => (el.data as { source?: string }).source === undefined,
+    ).length;
+    const dense = nodeCount > DENSE_NODE_THRESHOLD;
+
     const cy = cytoscape({
       container,
       elements,
-      style: buildStylesheet(readThemeColors()),
+      style: buildStylesheet(dense),
       layout: {
         name: "cose",
         animate: false,
         padding: FIT_PADDING,
-        nodeDimensionsIncludeLabels: true,
+        nodeDimensionsIncludeLabels: !dense,
         randomize: false,
-        componentSpacing: 120,
-        nodeRepulsion: () => 12000,
-        idealEdgeLength: () => 120,
+        componentSpacing: dense ? 60 : 120,
+        nodeRepulsion: () => (dense ? 6000 : 12000),
+        idealEdgeLength: () => (dense ? 60 : 120),
         edgeElasticity: () => 100,
-        gravity: 0.3,
+        gravity: 0.35,
       },
       wheelSensitivity: 0.2,
-      minZoom: 0.25,
-      maxZoom: 2,
+      minZoom: 0.1,
+      maxZoom: 2.5,
     });
 
     cyRef.current = cy;
 
     cy.ready(() => fitWithCap(cy));
 
-    const clearHighlight = () => cy.elements().removeClass("faded highlighted");
+    const clearHighlight = () => cy.elements().removeClass("faded highlighted lit");
 
     cy.on("tap", "node", (evt: EventObject) => {
       const node = evt.target;
       const neighborhood = node.closedNeighborhood();
       cy.elements().addClass("faded");
-      neighborhood.removeClass("faded").addClass("highlighted");
+      neighborhood.removeClass("faded").addClass("highlighted lit");
     });
 
     cy.on("tap", (evt: EventObject) => {
       if (evt.target === cy) clearHighlight();
     });
 
-    // Reveal a single edge's type label on hover.
+    // Reveal an edge's type on hover.
     cy.on("mouseover", "edge", (evt: EventObject) => evt.target.addClass("show-label"));
     cy.on("mouseout", "edge", (evt: EventObject) => evt.target.removeClass("show-label"));
+
+    // When labels are hidden (dense graph), reveal the hovered node's label.
+    if (dense) {
+      cy.on("mouseover", "node", (evt: EventObject) => evt.target.addClass("lit"));
+      cy.on("mouseout", "node", (evt: EventObject) => {
+        if (!evt.target.hasClass("highlighted")) evt.target.removeClass("lit");
+      });
+    }
 
     // Keep the canvas sized to its container; re-fit (capped) on resize.
     const observer = new ResizeObserver(() => {
@@ -251,21 +260,8 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
     });
     observer.observe(container);
 
-    // Recolor the canvas live when the theme changes — either the OS scheme
-    // (prefers-color-scheme) or an explicit data-theme toggle on :root.
-    const applyTheme = () => cy.style(buildStylesheet(readThemeColors()));
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    media.addEventListener("change", applyTheme);
-    const themeObserver = new MutationObserver(applyTheme);
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme", "class"],
-    });
-
     return () => {
       observer.disconnect();
-      media.removeEventListener("change", applyTheme);
-      themeObserver.disconnect();
       cy.destroy();
       cyRef.current = null;
     };
@@ -289,7 +285,7 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
             onClick={() => {
               const cy = cyRef.current;
               if (!cy) return;
-              cy.elements().removeClass("faded highlighted");
+              cy.elements().removeClass("faded highlighted lit");
               fitWithCap(cy);
             }}
             className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-fg"
@@ -310,7 +306,7 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
         ) : (
           <div
             ref={containerRef}
-            className="absolute inset-2 rounded-xl bg-surface"
+            className="graph-space-bg absolute inset-2 overflow-hidden rounded-xl ring-1 ring-white/5"
             style={{ cursor: "grab" }}
           />
         )}
