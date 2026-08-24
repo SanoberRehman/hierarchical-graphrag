@@ -9,10 +9,17 @@ expandable citations and an interactive visualization of the subgraph used.
 
 ![CI](https://github.com/SanoberRehman/hierarchical-graphrag/actions/workflows/ci.yml/badge.svg)
 
+## Demo
+
+![Hierarchical GraphRAG demo — ingesting a document, then a streamed, cited answer with its knowledge subgraph](docs/demo.gif)
+
+*Ingesting a document, then asking a question — the answer streams live with expandable citations and the interactive knowledge subgraph used to ground it.*
+
 ---
 
 ## Contents
 
+- [Demo](#demo)
 - [Why GraphRAG](#why-graphrag)
 - [Architecture](#architecture)
 - [Quick start (one command)](#quick-start-one-command)

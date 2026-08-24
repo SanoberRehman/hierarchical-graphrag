@@ -10,10 +10,10 @@
   --muted: 107 114 128;
   --fg: 17 20 27;
 
-  /* Single accent: a calm indigo. */
-  --accent: 88 80 236;
+  /* Single accent: an electric neon blue. */
+  --accent: 10 132 255;
   --accent-fg: 255 255 255;
-  --accent-soft: 238 237 253;
+  --accent-soft: 224 240 255;
 
   --font-sans: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -27,9 +27,9 @@
     --muted: 148 156 173;
     --fg: 233 236 243;
 
-    --accent: 129 122 255;
-    --accent-fg: 17 20 27;
-    --accent-soft: 34 33 66;
+    --accent: 56 189 248;
+    --accent-fg: 8 12 20;
+    --accent-soft: 15 40 66;
   }
 }
 

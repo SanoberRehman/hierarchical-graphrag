@@ -8,10 +8,23 @@ import cytoscape, {
 import { useEffect, useMemo, useRef } from "react";
 
 import type { Subgraph } from "@/lib/types";
-import { colorForType } from "@/lib/utils";
+import { colorMapForTypes } from "@/lib/utils";
 
 interface GraphInspectorProps {
   subgraph: Subgraph | null;
+}
+
+// Small graphs otherwise fit() to maxZoom and blow node/label sizes up. Cap the
+// zoom the graph settles at so nodes and labels stay at a readable size.
+const FIT_PADDING = 30;
+const MAX_FIT_ZOOM = 1.1;
+
+function fitWithCap(cy: Core): void {
+  cy.fit(undefined, FIT_PADDING);
+  if (cy.zoom() > MAX_FIT_ZOOM) {
+    cy.zoom(MAX_FIT_ZOOM);
+    cy.center();
+  }
 }
 
 /**
@@ -24,7 +37,10 @@ interface GraphInspectorProps {
  *    but invalid selectors — we never build selectors from keys, only use
  *    getElementById / neighborhood traversal.
  */
-function toElements(subgraph: Subgraph): ElementDefinition[] {
+function toElements(
+  subgraph: Subgraph,
+  colorByType: Map<string, string>,
+): ElementDefinition[] {
   const nodeKeys = new Set(subgraph.nodes.map((n) => n.key));
 
   const nodes: ElementDefinition[] = subgraph.nodes.map((n) => ({
@@ -32,7 +48,7 @@ function toElements(subgraph: Subgraph): ElementDefinition[] {
       id: n.key,
       label: n.name,
       type: n.type,
-      color: colorForType(n.type),
+      color: colorByType.get(n.type) ?? "#6366f1",
       description: n.description ?? "",
     },
   }));
@@ -44,7 +60,7 @@ function toElements(subgraph: Subgraph): ElementDefinition[] {
         id: `e${i}-${e.source}->${e.target}`,
         source: e.source,
         target: e.target,
-        label: e.type,
+        label: e.type.replace(/_/g, " "),
       },
     }));
 
@@ -55,19 +71,17 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cyRef = useRef<Core | null>(null);
 
-  const elements = useMemo(
-    () => (subgraph ? toElements(subgraph) : []),
+  const colorByType = useMemo(
+    () => colorMapForTypes(subgraph?.nodes.map((n) => n.type) ?? []),
     [subgraph],
   );
 
-  const legend = useMemo(() => {
-    if (!subgraph) return [];
-    const types = new Map<string, string>();
-    for (const n of subgraph.nodes) {
-      if (!types.has(n.type)) types.set(n.type, colorForType(n.type));
-    }
-    return Array.from(types.entries());
-  }, [subgraph]);
+  const elements = useMemo(
+    () => (subgraph ? toElements(subgraph, colorByType) : []),
+    [subgraph, colorByType],
+  );
+
+  const legend = useMemo(() => Array.from(colorByType.entries()), [colorByType]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -89,6 +103,7 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
       surface: token("--surface", "rgb(248, 249, 251)"),
       accent: token("--accent", "rgb(88, 80, 236)"),
     };
+    const fontFamily = "Inter, system-ui, sans-serif";
 
     const cy = cytoscape({
       container,
@@ -98,17 +113,27 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
           selector: "node",
           style: {
             "background-color": "data(color)",
+            width: 30,
+            height: 30,
+            "border-width": 3,
+            "border-color": c.card,
+            "border-opacity": 1,
             label: "data(label)",
             color: c.fg,
-            "font-size": "11px",
+            "font-family": fontFamily,
+            "font-size": "12px",
+            "font-weight": 600,
             "text-valign": "bottom",
-            "text-margin-y": 4,
-            "text-max-width": "120px",
-            "text-wrap": "ellipsis",
-            width: 26,
-            height: 26,
-            "border-width": 2,
-            "border-color": c.card,
+            "text-halign": "center",
+            "text-margin-y": 7,
+            "text-max-width": "96px",
+            "text-wrap": "wrap",
+            // A halo in the canvas color keeps labels legible over edges/nodes.
+            "text-outline-color": c.surface,
+            "text-outline-width": 3,
+            "text-outline-opacity": 1,
+            "transition-property": "border-color, border-width, opacity",
+            "transition-duration": 120,
           },
         },
         {
@@ -118,49 +143,71 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
             "line-color": c.border,
             "target-arrow-color": c.border,
             "target-arrow-shape": "triangle",
-            "arrow-scale": 0.8,
+            "arrow-scale": 0.9,
             "curve-style": "bezier",
             label: "data(label)",
-            "font-size": "9px",
+            "font-family": fontFamily,
+            "font-size": "10px",
             color: c.muted,
             "text-rotation": "autorotate",
-            "text-background-color": c.surface,
-            "text-background-opacity": 0.85,
-            "text-background-padding": "2px",
+            "text-outline-color": c.surface,
+            "text-outline-width": 3,
+            // Edge type is revealed on hover / highlight to keep the resting
+            // graph uncluttered (the full triples are also listed in the chat).
+            "text-opacity": 0,
+            "transition-property": "line-color, target-arrow-color, text-opacity, opacity",
+            "transition-duration": 120,
           },
+        },
+        {
+          selector: "node:active",
+          style: { "overlay-opacity": 0.1, "overlay-color": c.accent },
         },
         {
           selector: ".faded",
-          style: { opacity: 0.15 },
+          style: { opacity: 0.12 },
         },
         {
-          selector: ".highlighted",
+          selector: "node.highlighted",
+          style: { "border-color": c.accent, "border-width": 4 },
+        },
+        {
+          selector: "edge.highlighted",
           style: {
-            "border-color": c.accent,
-            "border-width": 3,
             "line-color": c.accent,
             "target-arrow-color": c.accent,
             color: c.fg,
+            "text-opacity": 1,
+            width: 2,
           },
+        },
+        {
+          selector: "edge.show-label",
+          style: { color: c.fg, "text-opacity": 1 },
         },
       ],
       layout: {
         name: "cose",
         animate: false,
-        padding: 24,
-        nodeRepulsion: () => 8000,
-        idealEdgeLength: () => 90,
+        padding: FIT_PADDING,
+        nodeDimensionsIncludeLabels: true,
+        randomize: false,
+        componentSpacing: 120,
+        nodeRepulsion: () => 12000,
+        idealEdgeLength: () => 120,
+        edgeElasticity: () => 100,
+        gravity: 0.3,
       },
       wheelSensitivity: 0.2,
-      minZoom: 0.2,
-      maxZoom: 3,
+      minZoom: 0.25,
+      maxZoom: 2,
     });
 
     cyRef.current = cy;
 
-    const clearHighlight = () => {
-      cy.elements().removeClass("faded highlighted");
-    };
+    cy.ready(() => fitWithCap(cy));
+
+    const clearHighlight = () => cy.elements().removeClass("faded highlighted");
 
     cy.on("tap", "node", (evt: EventObject) => {
       const node = evt.target;
@@ -173,10 +220,14 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
       if (evt.target === cy) clearHighlight();
     });
 
-    // Keep the canvas sized to its container on layout changes.
+    // Reveal a single edge's type label on hover.
+    cy.on("mouseover", "edge", (evt: EventObject) => evt.target.addClass("show-label"));
+    cy.on("mouseout", "edge", (evt: EventObject) => evt.target.removeClass("show-label"));
+
+    // Keep the canvas sized to its container; re-fit (capped) on resize.
     const observer = new ResizeObserver(() => {
       cy.resize();
-      cy.fit(undefined, 24);
+      fitWithCap(cy);
     });
     observer.observe(container);
 
@@ -190,15 +241,25 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-sm font-semibold">Graph Inspector</h2>
+        <div>
+          <h2 className="text-sm font-semibold">Graph Inspector</h2>
+          {elements.length > 0 && (
+            <p className="mt-0.5 text-xs text-muted">
+              {subgraph?.nodes.length} entities · {subgraph?.edges.length} relationships
+              <span className="hidden sm:inline"> · click a node to focus</span>
+            </p>
+          )}
+        </div>
         {legend.length > 0 && (
           <button
             type="button"
             onClick={() => {
-              cyRef.current?.elements().removeClass("faded highlighted");
-              cyRef.current?.fit(undefined, 24);
+              const cy = cyRef.current;
+              if (!cy) return;
+              cy.elements().removeClass("faded highlighted");
+              fitWithCap(cy);
             }}
-            className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:bg-surface"
+            className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:bg-surface hover:text-fg"
           >
             Reset view
           </button>
@@ -207,20 +268,27 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
 
       <div className="relative min-h-0 flex-1">
         {elements.length === 0 ? (
-          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted">
-            The knowledge subgraph for your latest answer will appear here.
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+            <GraphGlyph />
+            <p className="max-w-[15rem] text-sm text-muted">
+              Ask a question — the knowledge subgraph that grounds the answer appears here.
+            </p>
           </div>
         ) : (
-          <div ref={containerRef} className="absolute inset-0" />
+          <div
+            ref={containerRef}
+            className="absolute inset-2 rounded-xl bg-surface"
+            style={{ cursor: "grab" }}
+          />
         )}
       </div>
 
       {legend.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1.5 border-t border-border px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-border px-4 py-2.5">
           {legend.map(([type, color]) => (
             <span key={type} className="inline-flex items-center gap-1.5 text-xs text-muted">
               <span
-                className="h-2.5 w-2.5 rounded-full"
+                className="h-2.5 w-2.5 rounded-full ring-2 ring-card"
                 style={{ backgroundColor: color }}
               />
               {type}
@@ -229,5 +297,27 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
         </div>
       )}
     </div>
+  );
+}
+
+function GraphGlyph() {
+  return (
+    <svg
+      width="44"
+      height="44"
+      viewBox="0 0 44 44"
+      fill="none"
+      className="text-border"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="14" x2="30" y2="10" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="12" y1="14" x2="18" y2="32" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="30" y1="10" x2="34" y2="30" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="18" y1="32" x2="34" y2="30" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="12" cy="14" r="4" fill="rgb(var(--accent))" />
+      <circle cx="30" cy="10" r="4" fill="currentColor" />
+      <circle cx="18" cy="32" r="4" fill="currentColor" />
+      <circle cx="34" cy="30" r="4" fill="currentColor" />
+    </svg>
   );
 }
