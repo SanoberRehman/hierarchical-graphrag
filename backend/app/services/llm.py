@@ -53,6 +53,13 @@ _STOPWORD_STARTS = {
     "For", "And", "But", "Or", "If", "When", "While", "However", "Meanwhile",
     "Later", "Then", "After", "Before", "During", "Its", "Their", "His", "Her",
 }
+# Prompt/label words that must never be mistaken for entities in the fake
+# extractive answer (they appear in the assembled generation prompt).
+_PROMPT_BOILERPLATE = {
+    "question", "context", "answer", "cite", "retrieved", "passages", "passage",
+    "knowledge", "knowledge-graph", "relationships", "relationship", "source",
+    "sources", "note", "query", "only",
+}
 
 
 @runtime_checkable
@@ -98,13 +105,41 @@ class FakeLLMProvider:
         return GraphExtraction(entities=entities, relationships=relationships)
 
     def stream_generate(self, system: str, user: str) -> Iterator[str]:
-        # Deterministic, query-independent placeholder. The citations and subgraph
-        # in the stream are real (derived from ingested text); only this prose is
-        # canned, so tests can assert streaming/framing without a model. Set
-        # OPENAI_API_KEY (LLM_PROVIDER=openai) for genuine, query-specific answers.
+        # Deterministic, key-free answer. It doesn't reason like an LLM, but it IS
+        # grounded: it pulls the actual entity names out of the retrieved context
+        # so a zero-key demo surfaces real content instead of a fixed sentence.
+        # Genuine, query-specific answers need OPENAI_API_KEY (LLM_PROVIDER=openai).
+        # Scan only the retrieved-context portion — not the question/instructions.
+        haystack = user.split("Context:", 1)[-1]
+        names: list[str] = []
+        seen: set[str] = set()
+        for match in _ENTITY_RE.finditer(haystack):
+            phrase = match.group(1).strip(" .,-")
+            first = phrase.split()[0] if phrase else ""
+            if (
+                not phrase
+                or len(phrase) < 3
+                or first in _STOPWORD_STARTS
+                or first.lower() in _PROMPT_BOILERPLATE
+            ):
+                continue
+            key = phrase.lower()
+            if key not in seen:
+                seen.add(key)
+                names.append(phrase)
+            if len(names) >= 5:
+                break
+        if len(names) >= 2:
+            listed = ", ".join(names[:-1]) + f", and {names[-1]}"
+        elif names:
+            listed = names[0]
+        else:
+            listed = "the entities in the retrieved passages"
         answer = (
-            "Based on the retrieved context, here is a grounded summary [1]. "
-            "The knowledge graph relationships were used to connect the relevant entities."
+            f"Based on the retrieved context, the key entities include {listed} — "
+            "connected through the knowledge-graph relationships shown above [1]. "
+            "(Zero-key demo: this is a deterministic extractive summary; set "
+            "OPENAI_API_KEY for a full generated answer.)"
         )
         yield from _tokenize_for_stream(answer)
 
