@@ -19,12 +19,127 @@ interface GraphInspectorProps {
 const FIT_PADDING = 30;
 const MAX_FIT_ZOOM = 1.1;
 
+const FONT_FAMILY = "Inter, system-ui, sans-serif";
+
 function fitWithCap(cy: Core): void {
   cy.fit(undefined, FIT_PADDING);
   if (cy.zoom() > MAX_FIT_ZOOM) {
     cy.zoom(MAX_FIT_ZOOM);
     cy.center();
   }
+}
+
+interface ThemeColors {
+  fg: string;
+  card: string;
+  border: string;
+  muted: string;
+  surface: string;
+  accent: string;
+}
+
+/**
+ * Cytoscape renders to a canvas and can't resolve CSS custom properties, so read
+ * the active theme's tokens off :root and hand it concrete rgb() colors. Called
+ * again on theme change so the canvas recolors live.
+ */
+function readThemeColors(): ThemeColors {
+  const rootStyle = getComputedStyle(document.documentElement);
+  const token = (name: string, fallback: string): string => {
+    const raw = rootStyle.getPropertyValue(name).trim();
+    return raw ? `rgb(${raw.split(/\s+/).join(", ")})` : fallback;
+  };
+  return {
+    fg: token("--fg", "rgb(17, 20, 27)"),
+    card: token("--card", "rgb(255, 255, 255)"),
+    border: token("--border", "rgb(226, 229, 235)"),
+    muted: token("--muted", "rgb(107, 114, 128)"),
+    surface: token("--surface", "rgb(248, 249, 251)"),
+    accent: token("--accent", "rgb(88, 80, 236)"),
+  };
+}
+
+function buildStylesheet(
+  c: ThemeColors,
+): (cytoscape.StylesheetStyle | cytoscape.StylesheetCSS)[] {
+  return [
+    {
+      selector: "node",
+      style: {
+        "background-color": "data(color)",
+        width: 30,
+        height: 30,
+        "border-width": 3,
+        "border-color": c.card,
+        "border-opacity": 1,
+        label: "data(label)",
+        color: c.fg,
+        "font-family": FONT_FAMILY,
+        "font-size": "12px",
+        "font-weight": 600,
+        "text-valign": "bottom",
+        "text-halign": "center",
+        "text-margin-y": 7,
+        "text-max-width": "96px",
+        "text-wrap": "wrap",
+        // A halo in the canvas color keeps labels legible over edges/nodes.
+        "text-outline-color": c.surface,
+        "text-outline-width": 3,
+        "text-outline-opacity": 1,
+        "transition-property": "border-color, border-width, opacity",
+        "transition-duration": 120,
+      },
+    },
+    {
+      selector: "edge",
+      style: {
+        width: 1.5,
+        "line-color": c.border,
+        "target-arrow-color": c.border,
+        "target-arrow-shape": "triangle",
+        "arrow-scale": 0.9,
+        "curve-style": "bezier",
+        label: "data(label)",
+        "font-family": FONT_FAMILY,
+        "font-size": "10px",
+        color: c.muted,
+        "text-rotation": "autorotate",
+        "text-outline-color": c.surface,
+        "text-outline-width": 3,
+        // Edge type is revealed on hover / highlight to keep the resting graph
+        // uncluttered (the full triples are also listed in the chat).
+        "text-opacity": 0,
+        "transition-property": "line-color, target-arrow-color, text-opacity, opacity",
+        "transition-duration": 120,
+      },
+    },
+    {
+      selector: "node:active",
+      style: { "overlay-opacity": 0.1, "overlay-color": c.accent },
+    },
+    {
+      selector: ".faded",
+      style: { opacity: 0.12 },
+    },
+    {
+      selector: "node.highlighted",
+      style: { "border-color": c.accent, "border-width": 4 },
+    },
+    {
+      selector: "edge.highlighted",
+      style: {
+        "line-color": c.accent,
+        "target-arrow-color": c.accent,
+        color: c.fg,
+        "text-opacity": 1,
+        width: 2,
+      },
+    },
+    {
+      selector: "edge.show-label",
+      style: { color: c.fg, "text-opacity": 1 },
+    },
+  ];
 }
 
 /**
@@ -87,105 +202,10 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
     const container = containerRef.current;
     if (!container || elements.length === 0) return;
 
-    // Cytoscape renders to a canvas and cannot resolve CSS custom properties,
-    // so read the active theme's tokens and hand it concrete rgb() colors.
-    const rootStyle = getComputedStyle(document.documentElement);
-    const token = (name: string, fallback: string): string => {
-      const raw = rootStyle.getPropertyValue(name).trim();
-      if (!raw) return fallback;
-      return `rgb(${raw.split(/\s+/).join(", ")})`;
-    };
-    const c = {
-      fg: token("--fg", "rgb(17, 20, 27)"),
-      card: token("--card", "rgb(255, 255, 255)"),
-      border: token("--border", "rgb(226, 229, 235)"),
-      muted: token("--muted", "rgb(107, 114, 128)"),
-      surface: token("--surface", "rgb(248, 249, 251)"),
-      accent: token("--accent", "rgb(88, 80, 236)"),
-    };
-    const fontFamily = "Inter, system-ui, sans-serif";
-
     const cy = cytoscape({
       container,
       elements,
-      style: [
-        {
-          selector: "node",
-          style: {
-            "background-color": "data(color)",
-            width: 30,
-            height: 30,
-            "border-width": 3,
-            "border-color": c.card,
-            "border-opacity": 1,
-            label: "data(label)",
-            color: c.fg,
-            "font-family": fontFamily,
-            "font-size": "12px",
-            "font-weight": 600,
-            "text-valign": "bottom",
-            "text-halign": "center",
-            "text-margin-y": 7,
-            "text-max-width": "96px",
-            "text-wrap": "wrap",
-            // A halo in the canvas color keeps labels legible over edges/nodes.
-            "text-outline-color": c.surface,
-            "text-outline-width": 3,
-            "text-outline-opacity": 1,
-            "transition-property": "border-color, border-width, opacity",
-            "transition-duration": 120,
-          },
-        },
-        {
-          selector: "edge",
-          style: {
-            width: 1.5,
-            "line-color": c.border,
-            "target-arrow-color": c.border,
-            "target-arrow-shape": "triangle",
-            "arrow-scale": 0.9,
-            "curve-style": "bezier",
-            label: "data(label)",
-            "font-family": fontFamily,
-            "font-size": "10px",
-            color: c.muted,
-            "text-rotation": "autorotate",
-            "text-outline-color": c.surface,
-            "text-outline-width": 3,
-            // Edge type is revealed on hover / highlight to keep the resting
-            // graph uncluttered (the full triples are also listed in the chat).
-            "text-opacity": 0,
-            "transition-property": "line-color, target-arrow-color, text-opacity, opacity",
-            "transition-duration": 120,
-          },
-        },
-        {
-          selector: "node:active",
-          style: { "overlay-opacity": 0.1, "overlay-color": c.accent },
-        },
-        {
-          selector: ".faded",
-          style: { opacity: 0.12 },
-        },
-        {
-          selector: "node.highlighted",
-          style: { "border-color": c.accent, "border-width": 4 },
-        },
-        {
-          selector: "edge.highlighted",
-          style: {
-            "line-color": c.accent,
-            "target-arrow-color": c.accent,
-            color: c.fg,
-            "text-opacity": 1,
-            width: 2,
-          },
-        },
-        {
-          selector: "edge.show-label",
-          style: { color: c.fg, "text-opacity": 1 },
-        },
-      ],
+      style: buildStylesheet(readThemeColors()),
       layout: {
         name: "cose",
         animate: false,
@@ -231,8 +251,21 @@ export function GraphInspector({ subgraph }: GraphInspectorProps) {
     });
     observer.observe(container);
 
+    // Recolor the canvas live when the theme changes — either the OS scheme
+    // (prefers-color-scheme) or an explicit data-theme toggle on :root.
+    const applyTheme = () => cy.style(buildStylesheet(readThemeColors()));
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", applyTheme);
+    const themeObserver = new MutationObserver(applyTheme);
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class"],
+    });
+
     return () => {
       observer.disconnect();
+      media.removeEventListener("change", applyTheme);
+      themeObserver.disconnect();
       cy.destroy();
       cyRef.current = null;
     };

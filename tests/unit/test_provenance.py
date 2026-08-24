@@ -68,6 +68,27 @@ def test_edges_prefer_child_mentioning_both_endpoints() -> None:
     assert edge.child_chunk_ids == ["c0"]
 
 
+def test_mention_matching_is_normalized_across_surface_variants() -> None:
+    # The child mentions the entity with extra whitespace and punctuation
+    # ("Acme  Corp." with a double space + period) that a raw lowercase
+    # substring check would miss; normalized matching still links them.
+    child = ChildChunk(
+        id="c0", parent_id="p0", doc_id="d", index=0, token_count=10,
+        text="Earlier, Acme  Corp. announced its results.",
+    )
+    parent = ParentChunk(
+        id="p0", doc_id="d", index=0, token_count=10,
+        text=child.text, child_ids=["c0"],
+    )
+    extraction = GraphExtraction(entities=[Entity(name="Acme Corp", type="COMPANY")])
+
+    # Guard: raw substring matching would NOT find it (proves the test is real).
+    assert "acme corp" not in child.text.lower()
+
+    nodes, _ = map_provenance(extraction, parent, [child])
+    assert nodes[0].child_chunk_ids == ["c0"]
+
+
 def test_edge_endpoint_missing_from_entities_gets_synthetic_key() -> None:
     parent, children = _parent_with_children()
     extraction = GraphExtraction(
