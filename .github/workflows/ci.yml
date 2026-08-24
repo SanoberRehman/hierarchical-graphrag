@@ -99,3 +99,13 @@ jobs:
         run: npm run lint
       - name: Build
         run: npm run build
+
+  docker-build:
+    name: Docker build (backend image + compose)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose config
+        run: docker compose config -q
+      - name: Build backend image
+        run: docker build -f backend/Dockerfile -t graphrag-backend:ci .
