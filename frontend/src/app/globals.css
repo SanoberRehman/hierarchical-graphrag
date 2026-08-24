@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Light theme tokens (RGB channels for Tailwind's <alpha-value>). */
+  --surface: 248 249 251;
+  --card: 255 255 255;
+  --border: 226 229 235;
+  --muted: 107 114 128;
+  --fg: 17 20 27;
+
+  /* Single accent: a calm indigo. */
+  --accent: 88 80 236;
+  --accent-fg: 255 255 255;
+  --accent-soft: 238 237 253;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: 12 14 20;
+    --card: 21 24 33;
+    --border: 39 43 56;
+    --muted: 148 156 173;
+    --fg: 233 236 243;
+
+    --accent: 129 122 255;
+    --accent-fg: 17 20 27;
+    --accent-soft: 34 33 66;
+  }
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: rgb(var(--surface));
+  color: rgb(var(--fg));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Restrained custom scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border)) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--border));
+  border-radius: 9999px;
+}
