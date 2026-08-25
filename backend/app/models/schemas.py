@@ -72,6 +72,10 @@ class Citation(BaseModel):
     text: str
     score: float = Field(description="Best child-match similarity that mapped to this parent.")
     matched_child_ids: list[str] = Field(default_factory=list)
+    matched_child_texts: list[str] = Field(
+        default_factory=list,
+        description="The precise child snippets that matched — the 'small' in small-to-big.",
+    )
 
 
 class GraphTriple(BaseModel):

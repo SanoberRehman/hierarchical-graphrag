@@ -95,6 +95,7 @@ export interface Citation {
   text: string;
   score: number;
   matched_child_ids: string[];
+  matched_child_texts: string[];
 }
 
 export interface SubgraphResponse {

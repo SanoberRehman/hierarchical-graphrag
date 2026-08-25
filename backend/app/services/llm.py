@@ -61,6 +61,40 @@ _PROMPT_BOILERPLATE = {
     "sources", "note", "query", "only",
 }
 
+# Verb → typed relationship, checked in order (multi-word keys first) against the
+# text between two adjacent entities. Lets the offline extractor emit meaningful
+# typed edges instead of a uniform RELATED_TO.
+_RELATION_KEYWORDS: list[tuple[str, str]] = [
+    ("joint venture", "JOINT_VENTURE_WITH"),
+    ("acquired a stake", "ACQUIRED_STAKE_IN"),
+    ("spun off", "SPUN_OFF"),
+    ("licensed technology", "LICENSED_TECHNOLOGY_TO"),
+    ("partnered", "PARTNERED_WITH"),
+    ("partnership", "PARTNERED_WITH"),
+    ("acquired", "ACQUIRED"),
+    ("merged", "MERGED_WITH"),
+    ("invested", "INVESTED_IN"),
+    ("investment", "INVESTED_IN"),
+    ("backed", "BACKED"),
+    ("founded", "FOUNDED"),
+    ("supplies", "SUPPLIES"),
+    ("supplier", "SUPPLIES"),
+    ("competes", "COMPETES_WITH"),
+    ("stake", "ACQUIRED_STAKE_IN"),
+    ("licensed", "LICENSED_TECHNOLOGY_TO"),
+    ("portfolio", "IN_PORTFOLIO"),
+    ("added", "IN_PORTFOLIO"),
+]
+
+
+def _classify_relation(between: str) -> str:
+    """Map the text between two adjacent entities to a relationship type."""
+    lowered = between.lower()
+    for keyword, rel_type in _RELATION_KEYWORDS:
+        if keyword in lowered:
+            return rel_type
+    return "RELATED_TO"
+
 
 @runtime_checkable
 class LLMProvider(Protocol):
@@ -81,27 +115,53 @@ class FakeLLMProvider:
     name = "fake"
 
     def extract_graph(self, text: str) -> GraphExtraction:
-        seen: dict[str, str] = {}
-        ordered: list[str] = []
+        # Entity mentions in text order (with positions, so we can read the verb
+        # that sits between two adjacent entities).
+        matches: list[tuple[str, int, int]] = []
         for match in _ENTITY_RE.finditer(text):
             phrase = match.group(1).strip(" .,-")
             first = phrase.split()[0] if phrase else ""
             if not phrase or len(phrase) < 3 or first in _STOPWORD_STARTS:
                 continue
-            key = phrase.lower()
-            if key not in seen:
-                seen[key] = phrase
-                ordered.append(phrase)
+            matches.append((phrase, match.start(), match.end()))
 
+        seen: dict[str, str] = {}
+        ordered: list[str] = []
+        for name, _s, _e in matches:
+            key = name.lower()
+            if key not in seen:
+                seen[key] = name
+                ordered.append(name)
         entities = [Entity(name=name, type="ENTITY") for name in ordered]
+
+        # Windowed edges keep the graph a connected web (dense enough to look like
+        # a real network); the *immediate-next* pair is typed from the verb between
+        # them (ACQUIRED, PARTNERED_WITH, ...), farther window pairs fall back to
+        # RELATED_TO. So offline extraction is both connected and meaningfully typed.
         relationships: list[Relationship] = []
-        # Link each entity to the next few distinct entities (a sliding window)
-        # rather than a single chain, so the offline graph reads as a connected
-        # *web* — dense enough that a large corpus renders as a real network.
+        edge_seen: set[tuple[str, str]] = set()
         window = 3
-        for i, a in enumerate(ordered):
-            for b in ordered[i + 1 : i + 1 + window]:
-                relationships.append(Relationship(source=a, target=b, type="RELATED_TO"))
+
+        def _add(a: str, b: str, rel_type: str) -> None:
+            if a.lower() == b.lower():
+                return
+            pair = (a.lower(), b.lower())
+            if pair in edge_seen:
+                return
+            edge_seen.add(pair)
+            relationships.append(Relationship(source=a, target=b, type=rel_type))
+
+        # Pass 1 — adjacent pairs, typed from the verb between them (claim the
+        # pair first so a typed edge is never overwritten by a RELATED_TO one).
+        for i in range(len(matches) - 1):
+            a, _as, a_end = matches[i]
+            b, b_start, _be = matches[i + 1]
+            _add(a, b, _classify_relation(text[a_end:b_start]))
+        # Pass 2 — farther window pairs as RELATED_TO, for graph density.
+        for i in range(len(matches)):
+            a = matches[i][0]
+            for j in range(i + 2, min(i + 1 + window, len(matches))):
+                _add(a, matches[j][0], "RELATED_TO")
         return GraphExtraction(entities=entities, relationships=relationships)
 
     def stream_generate(self, system: str, user: str) -> Iterator[str]:
