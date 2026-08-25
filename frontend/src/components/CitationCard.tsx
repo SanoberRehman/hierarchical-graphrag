@@ -53,9 +53,29 @@ export function CitationCard({ citation, index }: CitationCardProps) {
 
       {open && (
         <div className="animate-fade-in border-t border-border px-3 py-3 text-sm">
-          <p className="whitespace-pre-wrap leading-relaxed text-fg/90">
-            {citation.text}
+          {citation.matched_child_texts.length > 0 && (
+            <div className="mb-3">
+              <p className="mb-1 text-[0.65rem] font-medium uppercase tracking-wide text-accent">
+                Matched snippet · child chunk (~200 tok)
+              </p>
+              <div className="space-y-1.5">
+                {citation.matched_child_texts.map((snippet, i) => (
+                  <p
+                    key={`${citation.matched_child_ids[i] ?? i}`}
+                    className="rounded-lg border-l-2 border-accent bg-accent-soft/40 px-3 py-2 leading-relaxed text-fg/90"
+                  >
+                    {snippet}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="mb-1 text-[0.65rem] font-medium uppercase tracking-wide text-muted">
+            Expanded parent context (~1000 tok · sent to the LLM)
           </p>
+          <p className="whitespace-pre-wrap leading-relaxed text-fg/90">{citation.text}</p>
+
           <dl className="mt-3 space-y-1 text-xs text-muted">
             <div className="flex gap-2">
               <dt className="font-medium">Document</dt>
@@ -63,7 +83,7 @@ export function CitationCard({ citation, index }: CitationCardProps) {
             </div>
             {citation.matched_child_ids.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
-                <dt className="w-full font-medium">Matched child chunks</dt>
+                <dt className="w-full font-medium">Child chunk ids</dt>
                 {citation.matched_child_ids.map((id) => (
                   <dd
                     key={id}

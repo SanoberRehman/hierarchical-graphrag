@@ -54,9 +54,11 @@ def hits_to_citations(hits: list[VectorHit]) -> list[Citation]:
                 text=hit.parent_text,
                 score=hit.score,
                 matched_child_ids=[hit.child_id],
+                matched_child_texts=[hit.child_text],
             )
         else:
             existing.matched_child_ids.append(hit.child_id)
+            existing.matched_child_texts.append(hit.child_text)
             existing.score = max(existing.score, hit.score)
     return sorted(by_parent.values(), key=lambda c: c.score, reverse=True)
 

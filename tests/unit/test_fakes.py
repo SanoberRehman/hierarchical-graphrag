@@ -74,6 +74,19 @@ def test_fake_llm_extraction_is_densely_connected() -> None:
     assert len(first_out) >= 2  # the first entity fans out to several neighbours
 
 
+def test_fake_llm_types_relationships_from_verbs() -> None:
+    # The offline extractor infers typed edges from the verb between two entities.
+    llm = FakeLLMProvider()
+    result = llm.extract_graph(
+        "Acme Corp acquired Beta Inc. Gamma Labs partnered with Delta Co. "
+        "Epsilon Group invested in Zeta Ltd."
+    )
+    types = {(r.source, r.target): r.type for r in result.relationships}
+    assert types.get(("Acme Corp", "Beta Inc")) == "ACQUIRED"
+    assert types.get(("Gamma Labs", "Delta Co")) == "PARTNERED_WITH"
+    assert types.get(("Epsilon Group", "Zeta Ltd")) == "INVESTED_IN"
+
+
 def test_fake_llm_stream_is_nonempty_and_joinable() -> None:
     llm = FakeLLMProvider()
     tokens = list(llm.stream_generate("system", "user"))
