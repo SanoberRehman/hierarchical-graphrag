@@ -2,7 +2,7 @@
 # Build context is the repo root (so pyproject.toml, README.md, and backend/ are
 # all available). The import root is `app` — matching tests (pythonpath=[backend])
 # and CI — because backend/app is copied to /srv/app and WORKDIR is /srv.
-FROM python:3.11-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
