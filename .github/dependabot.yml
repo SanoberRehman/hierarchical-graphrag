@@ -1,0 +1,31 @@
+# Weekly dependency updates across the four things CI builds:
+# the Python backend, the Next.js frontend, both Docker images, and the
+# workflow actions. Minor and patch bumps are grouped per ecosystem so the
+# integration job (Neo4j + Qdrant services) runs once per week; majors
+# open individually.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: docker
+    directories:
+      - /backend
+      - /frontend
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
